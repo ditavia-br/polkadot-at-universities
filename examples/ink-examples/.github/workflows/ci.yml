@@ -1,0 +1,235 @@
+name: continuous-integration/examples
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+        - v*
+    paths-ignore:
+      - '**.gitignore'
+      - '.images/**'
+      - '**README.md'
+      - 'LICENSE'
+
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.gitignore'
+      - '.images/**'
+      - '**README.md'
+      - 'LICENSE'
+
+
+jobs:
+  prepare_matrix:
+    name:
+    runs-on: ubuntu-latest
+    env:
+      # constant values for matrix
+      platform: '[\"ubuntu-latest\", \"macos-latest\"]'
+      toolchain: '[\"stable\"]'
+    outputs:
+      MATRIX: ${{ steps.build_matrix.outputs.MATRIX }}
+      SKIP_CHECKS: ${{ steps.build_matrix.outputs.SKIP_CHECKS }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Look for changes in standalone contracts
+        id: CHANGED_CONTRACTS
+        uses: tj-actions/changed-files@v41
+        with:
+          dir_names: "true"
+          dir_names_exclude_current_dir: "true"
+          dir_names_max_depth: 1
+          files_ignore: |
+            .github/**
+            .vscode/**
+            **/.gitignore
+            **/*.md
+            upgradeable-contracts/**
+            workspace-contracts/**
+            ui/**
+            **/frontend/**
+          json: true
+
+      - name: Look for changes in upgradable contracts
+        id: CHANGED_UPGRADEABLE_CONTRACTS
+        uses: tj-actions/changed-files@v41
+        with:
+          dir_names: "true"
+          dir_names_exclude_current_dir: "true"
+          dir_names_max_depth: 2
+          files: |
+            upgradeable-contracts/**
+          files_ignore: |
+            **/.gitignore
+            **/*.md
+            workspace-contracts/**
+          json: true
+
+      - name: Look for changes in workspace contracts
+        id: CHANGED_WORKSPACE_CONTRACTS
+        uses: tj-actions/changed-files@v41
+        with:
+          dir_names: "true"
+          dir_names_exclude_current_dir: "true"
+          dir_names_max_depth: 2
+          files: |
+            workspace-contracts/**
+          files_ignore: |
+            **/.gitignore
+            **/*.md
+          json: true
+
+
+      - name: List all changed files
+        run: |
+          echo " Changed workspace contracts " 
+          for file in ${{ steps.CHANGED_WORKSPACE_CONTRACTS.outputs.all_changed_files }}; do
+            echo "$file was changed"
+          done
+          echo "no more files.." 
+
+      - name: Build matrix
+        id: build_matrix
+        run: |
+          ALL_CHANGED_CONTRACTS=$(jq -s 'add' \
+                                <(echo "${{ steps.CHANGED_CONTRACTS.outputs.all_changed_files }}") \
+                                <(echo "${{ steps.CHANGED_UPGRADEABLE_CONTRACTS.outputs.all_changed_files }}"))
+
+          if [ ${{steps.CHANGED_WORKSPACE_CONTRACTS.outputs.all_changed_files }} = "[]" ]
+          then
+            echo "Nothing important changed. Workspace contracts job will be skipped."
+          else
+            ALL_CHANGED_CONTRACTS=$(jq -s 'add' \
+                                <(echo "$ALL_CHANGED_CONTRACTS") \
+                                <(echo "[\"workspace-contracts\"]"))
+          fi
+
+          if [ $ALL_CHANGED_CONTRACTS = "[]" ]
+          then
+            echo "Nothing important changed. Checks job will be skipped."
+            echo "SKIP_CHECKS=true" >> $GITHUB_OUTPUT
+          else
+            echo "There are changes in following contracts: $ALL_CHANGED_CONTRACTS"
+            echo "SKIP_CHECKS=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "MATRIX={\"platform\":${{env.platform}},\
+                          \"toolchain\":${{env.toolchain}},\
+                          \"contract\":"$ALL_CHANGED_CONTRACTS"}"\
+                          >> $GITHUB_OUTPUT
+
+      - name: Show resulting matrix
+        run: |
+          echo "Following matrix will be used to generate test jobs."
+          echo ${{ toJson(steps.build_matrix.outputs.MATRIX) }} | jq
+
+  check:
+    name: examples
+    needs: prepare_matrix
+    if: ${{ needs.prepare_matrix.outputs.SKIP_CHECKS  == 'false' }}
+    env:
+      RUST_BACKTRACE: full
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ${{ fromJson(needs.prepare_matrix.outputs.MATRIX) }}
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout sources & submodules
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Install toolchain
+        id: toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          components: rust-src
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.0
+        with:
+          cache-on-failure: true
+          workspaces: ${{ matrix.contract }}
+          key: ${{ matrix.contract }}
+
+      - name: Install `cargo-contract` `main`
+        uses: baptiste0928/cargo-install@21a18ba3bf4a184d1804e8b759930d3471b1c941 # v2.2.0
+        with:
+          crate: cargo-contract
+          git: https://github.com/paritytech/cargo-contract.git
+          cache-key: ${{ matrix.platform }}
+
+      - name: Install cargo-dylint
+        uses: baptiste0928/cargo-install@21a18ba3bf4a184d1804e8b759930d3471b1c941 # v2.2.0
+        with:
+          crate: cargo-dylint
+          version: 1
+
+      - name: Install dylint-link
+        uses: baptiste0928/cargo-install@21a18ba3bf4a184d1804e8b759930d3471b1c941 # v2.2.0
+        with:
+          crate: dylint-link
+          version: 1
+
+      - name: Download and run latest `substrate-contracts-node` binary
+        if: runner.os == 'Linux'
+        run: |
+          curl -L -o substrate-contracts-node.zip 'https://gitlab.parity.io/parity/mirrors/substrate-contracts-node/-/jobs/artifacts/main/download?job=build-linux' && \
+          unzip substrate-contracts-node.zip && \
+          chmod +x artifacts/substrate-contracts-node-linux/substrate-contracts-node &&
+          ./artifacts/substrate-contracts-node-linux/substrate-contracts-node -linfo,runtime::contracts=debug  2>&1 | tee /tmp/contracts-node.log &
+
+      - name: Download and run latest `substrate-contracts-node` binary
+        if: runner.os == 'macOS'
+        run: |
+            curl -L -o substrate-contracts-node.zip 'https://gitlab.parity.io/parity/mirrors/substrate-contracts-node/-/jobs/artifacts/main/download?job=build-mac' && \
+            unzip substrate-contracts-node.zip && \
+            chmod +x artifacts/substrate-contracts-node-mac/substrate-contracts-node &&
+            ./artifacts/substrate-contracts-node-mac/substrate-contracts-node -linfo,runtime::contracts=debug  2>&1 | tee /tmp/contracts-node.log &
+
+      - name: Install and run latest `substrate-contracts-node` binary
+        if: runner.os == 'Windows'
+        run: |
+            cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git --force --locked && \
+            substrate-contracts-node -lruntime::contracts=debug  2>&1 | tee /tmp/contracts-node.log &
+
+      - name: Output versions
+        run: |
+            cargo -vV
+            cargo contract --version
+
+      - name: Build ${{ matrix.contract }} on ${{ matrix.platform }}-${{ matrix.toolchain }}
+        if: runner.os != 'Windows' && matrix.contract != 'workspace-contracts'
+        run: cargo contract build --verbose --manifest-path=${{ matrix.contract }}/Cargo.toml;
+
+      - name: Test ${{ matrix.contract }} on ${{ matrix.platform }}-${{ matrix.toolchain }}
+        if: runner.os != 'Windows' && matrix.contract != 'workspace-contracts' && matrix.contract != 'static-buffer'
+        run: cargo test --verbose --manifest-path=${{ matrix.contract }}/Cargo.toml;
+
+      - name: Test ${{ matrix.contract }} on ${{ matrix.platform }}-${{ matrix.toolchain }}
+        if: runner.os != 'Windows' && matrix.contract == 'static-buffer'
+        run: |
+          cargo clean --manifest-path=${{ matrix.contract }}/Cargo.toml
+          INK_STATIC_BUFFER_SIZE=30 cargo test --verbose --manifest-path=${{ matrix.contract }}/Cargo.toml
+
+      - name: Build workspace ${{ matrix.contract }} on ${{ matrix.platform }}-${{ matrix.toolchain }}
+        if: runner.os != 'Windows' && matrix.contract == 'workspace-contracts'
+        run: |
+          echo FOLLOWING SEEMS TO WORK WITH CARGO-CONTRACT 4.0
+          cargo contract build --verbose --manifest-path=workspace-contracts/flipper/Cargo.toml
+          cargo contract build --verbose --manifest-path=workspace-contracts/incrementer/Cargo.toml

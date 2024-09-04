@@ -1,0 +1,28 @@
+[book]
+title = "Polkadot at Universities"
+authors = ["Ditavia Company - ditavia.com"]
+description = "The materials used in the Polkadot at Universities"
+language = "en"
+multilingual = false
+src = "content"
+
+[build]
+build-dir = "html-book"
+create-missing = false # opt out of helper to create missing stub files, we want to fail if the SUMMARY is incorrect.
+
+[rust]
+edition = "2021"
+
+[output.html]
+site-url = "/pba-book/" # needed for gh-pages, MUST match repo name on github!
+git-repository-url = "https://github.com/Polkadot-Blockchain-Academy/pba-book"
+edit-url-template = "https://github.com/Polkadot-Blockchain-Academy/pba-book/edit/main/{path}"
+
+[output.html.search]
+limit-results = 20
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 2
+boost-paragraph = 1
+expand = true
+heading-split-level = 2
