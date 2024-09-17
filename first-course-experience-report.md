@@ -8,7 +8,7 @@ Sep 17th, 2024
 ## 1. Introduction
 
 This document aims to report the experience of students and the professor in a one-semester discipline on Rust and Polkadot SDK in a Computer Science course at a Brazilian university.
-This couse was a pilot for the Polkadot at Universities initiative. 
+This discipline was a pilot for the Polkadot at Universities initiative. 
 We explain the content covered, the student's assignments, their feedback about the experience of participating in the course, and the feedback from the professor involved. 
 Nine students enrolled in the course and six of them completed it. They found the technologies presented interesting and have an interest in working with the Polkadot SDK. 
 However, they had difficulty finding complete documentation and more examples of how to use it. 
@@ -74,7 +74,7 @@ The students found the technologies presented in the course interesting and have
 * They also reported that the Polkadot SDK repositories changed during the course, making some links broken in the documentation such as the substrate-node-template. 
 * Necessity for more implementation examples, using different features and datatypes. They needed to search on the internet to find good examples when they thought these examples should be provided in the official documentation.
 
-From the Professor's perspective, the experience of teaching these technologies was very interesting. The Rust Book and Polkadot Blockchain Academy (PBA) materials are very complete and enough to support the creation of the discipline. We only need to make adjustments in the Ink! part of the material, which lacked more complete examples, and the instructions in the slides sometimes were not enough to the student complete the tasks during the classes.
+From the Professor's perspective, the experience of teaching these technologies was very interesting. The Rust Book and Polkadot Blockchain Academy (PBA) materials are very complete and enough to support the creation of the discipline. We created our onw slides for the Rust part of the course based on the Rust book. For the Polkadot SDK part, we only needed to make adjustments in the Ink! part of the material, which lacked more complete examples, and the instructions in the slides sometimes were not enough to the student complete the tasks during the classes.
 
 ## 5. Conclusion and Future Work
 From our perspective, the pilot of Polkadot at Universities was successful, showing that it is possible to provide an introduction to Polkadot SDK for university students in a one-semester discipline.
