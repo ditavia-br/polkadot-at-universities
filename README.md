@@ -1,7 +1,7 @@
 
 ## Polkadot at Universities
 
-The Polkadot at Universities initiative aims to introduce the Polkadot Ecosystem to university students by providing a one-semester course on Rust and Polkadot SDK. The first pilot of the project was delivered at a Brazilian University. For this reason, some content is in Brazilian Portuguese.
+The Polkadot at Universities initiative aims to introduce the Polkadot Ecosystem to university students by providing a one-semester course on Rust and Polkadot SDK. [The first pilot of the project](first-course-experience-report.md) was delivered at a Brazilian University. For this reason, some content is in Brazilian Portuguese.
 
 This repository is structured as follows:
 
